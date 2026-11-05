@@ -222,6 +222,18 @@ def show_live_match(round_id: str, fixture: dict) -> None:
             f"<div class='live-score'>{home_score} : {away_score}</div><div>{home} &nbsp; vs &nbsp; {away}</div></div>",
             unsafe_allow_html=True,
         )
+        home_crest, versus, away_crest = st.columns([2, 1, 2])
+        home_path = crest_path(home, "local")
+        away_path = crest_path(away, "visitante")
+        if home_path:
+            home_crest.image(str(home_path), width=86)
+        else:
+            home_crest.markdown("⚽")
+        versus.markdown("<div style='text-align:center;padding-top:32px;color:#08d9e8;font-weight:900;font-size:1.2rem'>VS</div>", unsafe_allow_html=True)
+        if away_path:
+            away_crest.image(str(away_path), width=86)
+        else:
+            away_crest.markdown("⚽")
         st.caption("El reloj avanza al actualizar la ventana. Los goles quedan como borrador hasta pulsar Partido terminado.")
         if st.button("⟳ Actualizar reloj", key=f"refresh_live_{round_id}_{fixture['id']}"):
             st.rerun()
