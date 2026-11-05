@@ -43,7 +43,7 @@ CREST_CODES = {
 CREST_FILES = {
     "Chelsea F.C": "CHELSEA.png", "A.C. Milan": "ACMILAN.png", "AS Roma": "ROMA.png",
     "Manchester United": "MUNITED.png", "Fenerbahçe SK": "FENERBAHCE.png", "River Plate": "RIVER.png",
-    "Real Sociedad": "REAL SOCIEDAD.png", "FC Porto": "FCP.png", "Manchester City": "MCITY.png",
+    "Real Sociedad": "REAL SOCIEDAD.png", "FC Porto": "PORTO.png", "Manchester City": "MCITY.png",
     "FC Barcelona": "BARCELONA.png", "PSG": "PSG.png", "Sporting Clube": "SPORTING.png",
     "Inter de Milán": "INTER.png", "Real Madrid": "REAL MADRID.png", "Borussia Dortmund": "DORMUNT.png",
     "Nottingham Forest": "FOREST.png", "Liverpool FC": "LIVERPOOL.png", "SL Benfica": "BENFICA.png",
