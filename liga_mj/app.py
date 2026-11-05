@@ -212,6 +212,9 @@ def show_live_match(round_id: str, fixture: dict) -> None:
             .live-dot { color:#ff5d6c; font-weight:900; letter-spacing:1.5px; }
             .live-ball { display:inline-block; animation:ball-spin 2.6s linear infinite; margin-right:8px; }
             .live-score { font:900 3.3rem 'Barlow Condensed',sans-serif; color:#fff; line-height:1; margin:8px 0; }
+            .live-teams { display:flex; align-items:center; justify-content:center; gap:8px; min-height:34px; font-weight:700; }
+            .live-team-name { color:#f3f7fb; font-size:.9rem; line-height:1.15; margin-top:8px; }
+            .live-versus { color:#08d9e8; font-size:1.35rem; font-weight:900; padding-top:36px; }
             .goal-row { padding:7px 10px; border-left:3px solid #08d9e8; background:rgba(8,217,232,.07); border-radius:6px; margin:4px 0; }
             </style>
             """,
@@ -219,21 +222,27 @@ def show_live_match(round_id: str, fixture: dict) -> None:
         )
         st.markdown(
             f"<div class='live-header'><div class='live-dot'><span class='live-ball'>⚽</span>EN VIVO · MINUTO {minute}'</div>"
-            f"<div class='live-score'>{home_score} : {away_score}</div><div>{home} &nbsp; vs &nbsp; {away}</div></div>",
+            f"<div class='live-score'>{home_score} : {away_score}</div></div>",
             unsafe_allow_html=True,
         )
-        home_crest, versus, away_crest = st.columns([2, 1, 2])
+        home_crest, versus, away_crest = st.columns(3)
         home_path = crest_path(home, "local")
         away_path = crest_path(away, "visitante")
         if home_path:
-            home_crest.image(str(home_path), width=86)
+            home_crest.markdown(
+                f"<div style='text-align:center'>{crest_img_html(home, 96)}<div class='live-team-name'>{home}</div></div>",
+                unsafe_allow_html=True,
+            )
         else:
-            home_crest.markdown("⚽")
-        versus.markdown("<div style='text-align:center;padding-top:32px;color:#08d9e8;font-weight:900;font-size:1.2rem'>VS</div>", unsafe_allow_html=True)
+            home_crest.markdown(f"<div style='text-align:center;font-size:3rem'>⚽<div class='live-team-name'>{home}</div></div>", unsafe_allow_html=True)
+        versus.markdown("<div class='live-versus' style='text-align:center'>VS</div>", unsafe_allow_html=True)
         if away_path:
-            away_crest.image(str(away_path), width=86)
+            away_crest.markdown(
+                f"<div style='text-align:center'>{crest_img_html(away, 96)}<div class='live-team-name'>{away}</div></div>",
+                unsafe_allow_html=True,
+            )
         else:
-            away_crest.markdown("⚽")
+            away_crest.markdown(f"<div style='text-align:center;font-size:3rem'>⚽<div class='live-team-name'>{away}</div></div>", unsafe_allow_html=True)
         st.caption("El reloj avanza al actualizar la ventana. Los goles quedan como borrador hasta pulsar Partido terminado.")
         if st.button("⟳ Actualizar reloj", key=f"refresh_live_{round_id}_{fixture['id']}"):
             st.rerun()
