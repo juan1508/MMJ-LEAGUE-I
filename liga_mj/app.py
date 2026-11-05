@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 import uuid
 from collections import defaultdict
 from datetime import datetime
@@ -178,6 +179,88 @@ def save_data() -> None:
     temp = DATA_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(DATA_FILE)
+
+
+def live_score(live_match: dict, home: str, away: str) -> tuple[int, int]:
+    home_goals = sum(goal["team"] == home for goal in live_match["goals"])
+    away_goals = sum(goal["team"] == away for goal in live_match["goals"])
+    return home_goals, away_goals
+
+
+def live_elapsed_minute(live_match: dict) -> int:
+    started_at = float(live_match.get("started_at", time.time()))
+    return min(120, max(1, int((time.time() - started_at) // 60) + 1))
+
+
+def show_live_match(round_id: str, fixture: dict) -> None:
+    """Muestra un partido temporal; solo Partido terminado escribe en liga_data.json."""
+    @st.dialog("Partido en vivo")
+    def dialog() -> None:
+        live_match = st.session_state.get("live_match")
+        if not live_match or live_match.get("fixture_id") != fixture["id"]:
+            return
+
+        home, away = fixture["home"], fixture["away"]
+        home_score, away_score = live_score(live_match, home, away)
+        minute = live_elapsed_minute(live_match)
+        st.markdown(
+            """
+            <style>
+            @keyframes live-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(8,217,232,.25); } 50% { box-shadow:0 0 0 14px rgba(8,217,232,0); } }
+            @keyframes ball-spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+            .live-header { padding:16px; border:1px solid rgba(8,217,232,.35); border-radius:16px; background:linear-gradient(110deg,rgba(8,217,232,.16),rgba(14,22,31,.95)); animation:live-pulse 2.2s infinite; text-align:center; }
+            .live-dot { color:#ff5d6c; font-weight:900; letter-spacing:1.5px; }
+            .live-ball { display:inline-block; animation:ball-spin 2.6s linear infinite; margin-right:8px; }
+            .live-score { font:900 3.3rem 'Barlow Condensed',sans-serif; color:#fff; line-height:1; margin:8px 0; }
+            .goal-row { padding:7px 10px; border-left:3px solid #08d9e8; background:rgba(8,217,232,.07); border-radius:6px; margin:4px 0; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div class='live-header'><div class='live-dot'><span class='live-ball'>⚽</span>EN VIVO · MINUTO {minute}'</div>"
+            f"<div class='live-score'>{home_score} : {away_score}</div><div>{home} &nbsp; vs &nbsp; {away}</div></div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("El reloj avanza al actualizar la ventana. Los goles quedan como borrador hasta pulsar Partido terminado.")
+        if st.button("⟳ Actualizar reloj", key=f"refresh_live_{round_id}_{fixture['id']}"):
+            st.rerun()
+
+        st.markdown("#### Registrar gol")
+        with st.form(f"live_goal_{round_id}_{fixture['id']}", clear_on_submit=True):
+            scorer = st.selectbox("Equipo que anotó", [home, away], key=f"live_scorer_{fixture['id']}")
+            goal_minute = st.number_input("Minuto del gol", min_value=1, max_value=120, value=minute, step=1, key=f"live_minute_{fixture['id']}")
+            add_goal = st.form_submit_button("⚽ Registrar gol", type="primary", width="stretch")
+        if add_goal:
+            live_match["goals"].append({"team": scorer, "minute": int(goal_minute)})
+            live_match["last_goal_at"] = time.time()
+            st.rerun()
+
+        if live_match.get("last_goal_at") and time.time() - live_match["last_goal_at"] < 4:
+            st.markdown("<div class='goal-row'><b>¡GOOOOL!</b> Animación registrada en el minuto del evento.</div>", unsafe_allow_html=True)
+
+        st.markdown("#### Goles registrados")
+        if live_match["goals"]:
+            for index, goal in enumerate(live_match["goals"]):
+                st.markdown(f"<div class='goal-row'>⚽ <b>{goal['minute']}'</b> · {goal['team']}</div>", unsafe_allow_html=True)
+                if st.button("Quitar", key=f"remove_goal_{fixture['id']}_{index}"):
+                    live_match["goals"].pop(index)
+                    st.rerun()
+        else:
+            st.info("Todavía no hay goles. Puedes terminar el partido 0–0.")
+
+        finish, abandon = st.columns(2)
+        if finish.button("✓ Partido terminado", key=f"finish_live_{round_id}_{fixture['id']}", type="primary", width="stretch"):
+            fixture["home_goals"], fixture["away_goals"] = home_score, away_score
+            save_data()
+            st.session_state.pop("live_match", None)
+            st.rerun()
+        if abandon.button("Salir sin guardar", key=f"cancel_live_{round_id}_{fixture['id']}", width="stretch"):
+            st.session_state.pop("live_match", None)
+            st.rerun()
+        st.warning("Si sales sin pulsar ‘Partido terminado’, este partido no se registra en la liga.")
+
+    dialog()
 
 
 def validate_backup(candidate: object) -> dict:
@@ -407,6 +490,10 @@ with st.sidebar:
             except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 st.error(f"No se pudo restaurar: {exc}")
 
+if page != "Fechas y resultados":
+    # Un partido en vivo nunca se persiste en session_state al cambiar de sección.
+    st.session_state.pop("live_match", None)
+
 if page == "Inicio":
     st.markdown('<div class="hero"><div class="eyebrow">Liga MJ · Temporada 1</div><div class="hero-title">EL CAMINO A LA GLORIA</div><p class="hero-sub">24 clubes · 3 presidentes · 8 fechas · un solo campeón.</p></div>', unsafe_allow_html=True)
     wins = [r for r in table_rows if r["Pts"] > 0]
@@ -437,6 +524,13 @@ elif page == "Fechas y resultados":
     st.caption("Organiza manualmente cada fecha. Cualquier club libre puede ser local o visitante; en una fecha, un club solo puede aparecer una vez.")
     rid = st.selectbox("Selecciona una fecha", ROUND_IDS, format_func=lambda x: data["matchdays"][x]["title"], key="selected_round")
     matchday = data["matchdays"][rid]
+    live_match = st.session_state.get("live_match")
+    if live_match and live_match.get("round_id") == rid:
+        live_fixture = next((item for item in matchday["fixtures"] if item["id"] == live_match.get("fixture_id")), None)
+        if live_fixture and live_fixture.get("home_goals") is None and live_fixture.get("away_goals") is None:
+            show_live_match(rid, live_fixture)
+        else:
+            st.session_state.pop("live_match", None)
     with st.expander("Editar nombre de la fecha", expanded=False):
         with st.form(f"title_{rid}"):
             new_title = st.text_input("Nombre", value=matchday.get("title", f"Fecha {rid}"))
@@ -489,6 +583,21 @@ elif page == "Fechas y resultados":
                 away_logo.image(str(away_crest), width=42)
             else:
                 away_logo.markdown("⚽")
+            if not played_match:
+                active_live = st.session_state.get("live_match")
+                is_this_live = active_live and active_live.get("fixture_id") == fixture["id"]
+                if is_this_live:
+                    st.info("Partido en vivo: abre la ventana para continuar registrando eventos.")
+                elif active_live:
+                    st.button("▶ Jugar partido", key=f"play_{rid}_{fixture['id']}", disabled=True, help="Termina el partido en vivo actual antes de iniciar otro.")
+                elif st.button("▶ Jugar partido", key=f"play_{rid}_{fixture['id']}", type="primary"):
+                    st.session_state["live_match"] = {
+                        "round_id": rid,
+                        "fixture_id": fixture["id"],
+                        "started_at": time.time(),
+                        "goals": [],
+                    }
+                    st.rerun()
             with st.form(f"result_{rid}_{fixture['id']}"):
                 h, a, save, delete = st.columns([1, 1, 2, 1])
                 hg = h.number_input("Goles local", min_value=0, step=1, value=int(fixture.get("home_goals") or 0), key=f"hg_{rid}_{fixture['id']}")
